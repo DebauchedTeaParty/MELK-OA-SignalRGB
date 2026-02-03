@@ -1,12 +1,12 @@
 # Bluetooth Low Energy communication with MELK-OA devices
-bleak>=0.21.0
+bleak
 
 # Web server for Nanoleaf API emulation
-flask>=2.3.0
-flask-cors>=4.0.0
+flask
+flask-cors
 
 # mDNS discovery (auto-detection in SignalRGB)
-zeroconf>=0.131.0
+zeroconf
 
 # Auto power-on functionality for MELK-OA devices
-btledstrip>=0.2.1
+btledstrip
