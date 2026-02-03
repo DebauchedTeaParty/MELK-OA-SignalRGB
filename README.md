@@ -51,10 +51,6 @@ SignalRGB doesn't natively support MELK-OA devices, but it does support Nanoleaf
    - Open SignalRGB
    - Go to **Add Device** → **Nanoleaf** (or search for "Nanoleaf")
    - If auto-discovery worked, the device should appear automatically
-   - If not, manually add:
-     - **IP**: Your computer's local IP address (shown in the bridge console)
-     - **Port**: `16021`
-     - **Token**: `melkoa1`
 
 4. **Start an effect in SignalRGB** - your MELK-OA panels should now sync with the colors!
 
@@ -130,7 +126,6 @@ For most use cases, this is perfectly fine and still provides an excellent RGB e
 - Check that your computer's local IP is correct
 - Ensure port 16021 is not blocked by firewall
 - Try manually adding the device with the IP address shown in the bridge console
-- Verify the token is exactly `melkoa1` (case-sensitive)
 
 ## Technical Details
 
