@@ -2,6 +2,8 @@
 
 A bridge application that makes affordable MELK-OA LED panels and strips work with SignalRGB by emulating Nanoleaf devices. This project allows you to use budget-friendly RGB lighting with SignalRGB's premium ecosystem.
 
+Note: I have tested this on two sets of panels and a set of strip lights and over two machines with no issues, however, another tester found that the Nanoleaf bridge was setup correctly but the lights set to colours outside of their theme. I have been unable to replicate this and as such am unsure on how to fix it. If you run into this issue please let me know. In future versions of the executable I intend to add some sort of logging so that i can work out any problems like this if they arise. I have also been able to reduce latency in the app and colour changes have been able to roughly keep up now upto a shift speed of around 50-60. I'll be pushing that version live over the coming days and will remove this message once I have done it.
+
 ## Overview
 
 SignalRGB doesn't natively support MELK-OA devices, but it does support Nanoleaf panels. This bridge acts as a translator: SignalRGB thinks it's talking to a Nanoleaf device, but the bridge translates those commands into the 7E protocol that MELK-OA devices understand over Bluetooth Low Energy (BLE).
