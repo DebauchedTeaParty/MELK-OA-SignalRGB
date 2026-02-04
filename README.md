@@ -10,6 +10,7 @@ SignalRGB doesn't natively support MELK-OA devices, but it does support Nanoleaf
 
 ## Features
 
+- **New .exe version available in releases to remove the need for the setup steps below
 - **Automatic Device Discovery**: Automatically scans for and connects to nearby MELK-OA devices
 - **Multi-Device Support**: Control multiple MELK-OA panels/strips simultaneously (all synchronized)
 - **Real-time Color Streaming**: Receives color updates from SignalRGB via UDP and forwards them to your devices
