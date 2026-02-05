@@ -10,3 +10,17 @@ zeroconf
 
 # Auto power-on functionality for MELK-OA devices
 btledstrip
+
+# System tray GUI
+pystray
+pillow
+
+# GUI window (tkinter is usually included with Python, but listing for completeness)
+# tkinter - usually included with Python
+
+# Modern GUI styling (Material Design 3)
+ttkbootstrap
+
+# Build tools (optional, for creating executable)
+pyinstaller
+pyarmor

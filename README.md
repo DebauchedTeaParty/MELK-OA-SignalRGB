@@ -1,64 +1,240 @@
-# MELK-OA Nanoleaf Bridge for SignalRGB
+## MelkoLeaf – MELK-OA Nanoleaf Bridge for SignalRGB
 
-A bridge application that makes affordable MELK-OA LED panels and strips work with SignalRGB by emulating Nanoleaf devices. This project allows you to use budget-friendly RGB lighting with SignalRGB's premium ecosystem.
+MelkoLeaf is a Python-based bridge that makes cheap **MELK-OA LED panels and strips** work with **SignalRGB** by emulating a **Nanoleaf** device.  
+It speaks Nanoleaf on the network side and the MELK-OA “7E protocol” over Bluetooth Low Energy on the device side.
 
-## Overview
+This repository contains both the **source bridge script** and a **modern GUI + tray EXE** for Windows, including an obfuscated build to reduce AV false-positives.
 
-SignalRGB doesn't natively support MELK-OA devices, but it does support Nanoleaf panels. This bridge acts as a translator: SignalRGB thinks it's talking to a Nanoleaf device, but the bridge translates those commands into the 7E protocol that MELK-OA devices understand over Bluetooth Low Energy (BLE).
+> The story and technical background are described in detail in the blog post  
+> **“Building a Bridge: Making Cheap LED Panels Work with SignalRGB”** – see [the article](https://debauchedtea.party/2026/01/30/building-a-bridge-making-cheap-led-panels-work-with-signalrgb/).
+
+### MelkoLeaf GUI (EXE)
+
+![MelkoLeaf GUI](https://debauchedtea.party/img/qffzbzom/)
+
+The EXE version runs in the background with a compact Material Design–inspired GUI and a system tray icon for quick control.
+
+### Lights in Action
+
+Short demo of the bridge driving MELK-OA panels via SignalRGB:  
+[YouTube Short – MelkoLeaf + SignalRGB](https://youtube.com/shorts/tn5hn16_tJM?si=odGw8A4gB9eRlKyw)
+
+---
 
 ## Features
 
-- **Automatic Device Discovery**: Automatically scans for and connects to nearby MELK-OA devices
-- **Multi-Device Support**: Control multiple MELK-OA panels/strips simultaneously (all synchronized)
-- **Real-time Color Streaming**: Receives color updates from SignalRGB via UDP and forwards them to your devices
-- **Zero Configuration**: Works out of the box - just run and connect
-- **mDNS Discovery**: Advertises itself as a Nanoleaf device for easy auto-detection in SignalRGB
+- **Nanoleaf emulation for SignalRGB**
+  - Emulates the Nanoleaf HTTP API using Flask
+  - Implements the UDP “extControl v2” streaming protocol on port `60222`
+  - Auto-discoverable via mDNS/zeroconf as a Nanoleaf Canvas
+
+- **MELK-OA device support over BLE**
+  - Scans for nearby MELK-OA devices with `bleak`
+  - Uses the **7E protocol** to send colors and basic commands
+  - Optional auto power-on via `btledstrip` (if installed)
+  - Supports multiple panels/strips in sync (all same color)
+
+- **Compact modern GUI (MelkoLeaf)**
+  - Material Design 3–style dark UI using `ttkbootstrap`
+  - Status tab showing:
+    - Server status (Starting / Running / Stopped)
+    - UDP status and total packet count
+    - BLE status
+    - Connected devices
+    - Bridge IP and port
+  - Controls:
+    - **Pause / Resume** streaming to devices
+    - **Restart** bridge
+    - **Exit** (full shutdown, no orphan processes)
+    - “Start with Windows” toggle (uses Windows registry)
+  - Console tab showing live log output (Flask, UDP, BLE, errors)
+  - Minimizes to **system tray** (via `pystray`) with tray menu:
+    - Show Window
+    - Pause / Resume
+    - Restart
+    - Exit
+    - Live status items (server, UDP, BLE, devices, IP)
+
+- **CLI / headless mode**
+  - Can be run as a simple console bridge without the GUI
+  - Same latency optimisations and throttling are shared between CLI and GUI modes
+
+- **Obfuscated Windows EXE build**
+  - Uses **PyArmor** to obfuscate Python sources
+  - Packs everything with **PyInstaller** into a single `MelkoLeaf.exe`
+  - Hides the console window in normal use
+  - Why did I do this? It seems to be a common problem that python packaged as an exe creates AV false positives, this solves that issue. The app now only has 2 false positives on VirusTotal
+
+---
+
+## How It Works (High Level)
+
+1. **Device Discovery (BLE)**
+   - At startup, the bridge scans for MELK-OA devices using `bleak` or reads a configured device list from `melk_config.json` / `MELK_MAC_ADDRESSES`.
+   - Optionally sends a “turn on + 100% brightness” sequence using `btledstrip`.
+
+2. **Nanoleaf Emulation (HTTP + mDNS)**
+   - A Flask server exposes a minimal Nanoleaf-style API on port `16021`.
+   - mDNS/zeroconf advertises the bridge as a Nanoleaf Canvas so SignalRGB auto-discovers it.
+   - HTTP routes satisfy what SignalRGB expects (`/api/v1/`, `/state`, `/effects`, etc.).
+
+3. **Color Streaming (UDP)**
+   - A UDP listener on `0.0.0.0:60222` receives Nanoleaf extControl v2 packets from SignalRGB.
+   - The first “panel” color (or aggregate color) is extracted and pushed into a queue.
+   - The bridge throttles to **30 FPS** and drops stale frames to keep latency low.
+
+4. **BLE Forwarding (7E Protocol)**
+   - A dedicated BLE worker thread reads from the color queue.
+   - For each new color, it sends the 7E color packet to **all** configured MELK-OA devices in parallel using `bleak`.
+   - All panels show the same color at the same time (hardware limitation).
+
+5. **GUI + Tray (EXE)**
+   - On Windows, `start_melk_bridge.py` starts the bridge logic in a background thread and launches the Tk/ttkbootstrap GUI on the main thread.
+   - The GUI and tray read status from `melk_tray` and update indicators in real time.
+   - Exiting from the GUI or tray cleanly stops UDP, BLE, HTTP, and the process.
+
+For a more narrative explanation, see the original blog post:  
+[Building a Bridge: Making Cheap LED Panels Work with SignalRGB](https://debauchedtea.party/2026/01/30/building-a-bridge-making-cheap-led-panels-work-with-signalrgb/).
+
+---
 
 ## Requirements
 
-- **Hardware**:
-  - MELK-OA LED panels or strips
-  - A computer with Bluetooth support
-  - SignalRGB installed
+### Hardware
 
-- **Software**:
-  - Python 3.12 or higher
+- MELK-OA LED panels or strips
+- Windows PC with **Bluetooth** support
+- [SignalRGB](https://www.signalrgb.com/) installed
 
-## Installation
+### Software (source / dev setup)
 
-1. **Clone or download this repository**
+- Python **3.12+** (3.14 also tested)
+- Recommended to use a virtualenv
 
-2. **Install Python dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-## Usage
+Python dependencies (see `requirements.txt`):
 
-### Basic Setup
+- Core bridge:
+  - `bleak`
+  - `btledstrip`
+  - `flask`
+  - `flask-cors`
+  - `zeroconf`
+- GUI + tray:
+  - `ttkbootstrap`
+  - `pystray`
+  - `pillow`
+- Windows integration:
+  - `pywin32`
+- Build / obfuscation (optional):
+  - `pyinstaller`
+  - `pyarmor`
 
-1. **Power on your MELK-OA panels/strips** and ensure they're in Bluetooth range
+Install dependencies for development:
 
-2. **Start the bridge**:
-   ```bash
-   python start_melk_bridge.py
-   ```
-   Or directly:
-   ```bash
-   python melk_bridge.py
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-3. **Add device in SignalRGB**:
+---
+
+## Running from Source (CLI / Dev)
+
+### Simple CLI bridge (no GUI)
+
+```bash
+python melk_bridge.py
+```
+
+This:
+
+- Scans for MELK-OA devices
+- Starts the Flask Nanoleaf API on port `16021`
+- Listens for UDP streaming on port `60222`
+
+Use this mode when debugging or running headless (e.g. on a Linux box with Bluetooth).
+
+### GUI + Tray (development)
+
+On Windows, run:
+
+```bash
+python start_melk_bridge.py
+```
+
+This:
+
+- Starts the bridge (BLE, UDP, HTTP, mDNS) in a background thread
+- Launches the compact MelkoLeaf GUI on the main thread
+- Shows a tray icon (`rgb.png`) in the notification area
+
+If you see a console window in dev mode, that’s expected; the final EXE hides it.
+
+---
+
+## Using the Windows EXE
+
+After building (see **Building the EXE** below) you’ll have:
+
+- `dist/MelkoLeaf.exe`
+
+Running `MelkoLeaf.exe` will:
+
+- Change into the correct working directory for configs/logs
+- Start the bridge
+- Show the MelkoLeaf GUI window and a tray icon
+
+### GUI Overview
+
+- **Status tab**
+  - Server – “Starting” → “Running” or “Stopped”
+  - UDP – “Starting” → “Receiving (N packets)” or “Stopped (N packets)”
+  - BLE – “Starting” / “Ready” / “Not Ready”
+  - Devices – number of connected MELK-OA devices
+  - Network – IP and port the bridge is advertising
+
+- **Controls**
+  - **Pause / Resume** – stop/resume applying UDP colors to the devices
+  - **Restart** – restart the bridge components
+  - **Exit** – fully closes GUI, tray, and bridge (no leftover processes)
+  - **Start with Windows** – registers/unregisters MelkoLeaf in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+  - **Minimize to Tray** – hides the window but keeps the tray icon active
+
+- **Console tab**
+  - Shows logs from Flask, UDP, BLE, and the bridge
+  - Auto-scrolls and trims old log content to avoid memory bloat
+  - “Clear” button to reset the log view
+
+The tray menu mirrors key controls (Pause/Resume, Restart, Exit) and shows live status.
+
+---
+
+## SignalRGB Setup
+
+1. **Start MelkoLeaf**
+   - Run either `python start_melk_bridge.py` (dev) or `MelkoLeaf.exe` (EXE).
+   - Wait for the GUI status to show:
+     - Server: Running
+     - UDP: Receiving (once an effect is running)
+     - BLE: Ready
+
+2. **Add the device in SignalRGB**
    - Open SignalRGB
-   - Go to **Add Device** → **Nanoleaf** (or search for "Nanoleaf")
-   - If auto-discovery worked, the device should appear automatically
+   - Go to **Add Device → Nanoleaf**
+   - The bridge should appear automatically via mDNS as a Nanoleaf Canvas
 
-4. **Start an effect in SignalRGB** - your MELK-OA panels should now sync with the colors!
 
-### Configuration (Optional)
+3. **Start an effect**
+   - Pick any effect in SignalRGB; the panels/strips will follow in real time.
 
-#### Using Specific Devices
+> Note: All connected MELK-OA devices show the same color. Individual panel control is not possible with this hardware, as explained in the [blog post](https://debauchedtea.party/2026/01/30/building-a-bridge-making-cheap-led-panels-work-with-signalrgb/).
 
-By default, the bridge scans for all nearby MELK-OA devices. To use specific devices only, create a `melk_config.json` file in the same directory as the bridge:
+---
+
+## Configuration
+
+### Selecting specific devices
+
+By default, the bridge scans for all nearby MELK-OA devices. To restrict it to specific MAC addresses, create a `melk_config.json` file next to the executable/script:
 
 ```json
 {
@@ -66,117 +242,105 @@ By default, the bridge scans for all nearby MELK-OA devices. To use specific dev
 }
 ```
 
-Replace the MAC addresses with your actual device addresses (shown in the bridge console when it discovers devices).
-
-#### Environment Variable Alternative
-
-You can also set device MAC addresses via environment variable:
+Alternatively, use the environment variable:
 
 ```bash
-# Windows PowerShell
+# PowerShell
 $env:MELK_MAC_ADDRESSES="AA:BB:CC:DD:EE:FF,11:22:33:44:55:66"
 
-# Linux/macOS
+# Bash
 export MELK_MAC_ADDRESSES="AA:BB:CC:DD:EE:FF,11:22:33:44:55:66"
 ```
 
-## How It Works
+### Logs
 
-1. **Device Discovery**: The bridge scans for MELK-OA devices using Bluetooth Low Energy (BLE)
-2. **Nanoleaf Emulation**: A Flask web server emulates the Nanoleaf REST API that SignalRGB expects
-3. **Color Streaming**: SignalRGB sends color data via UDP (port 60222) using the Nanoleaf extControl protocol
-4. **Protocol Translation**: The bridge translates Nanoleaf commands into the 7E protocol format that MELK-OA devices understand
-5. **Bluetooth Communication**: Colors are sent to all connected MELK-OA devices simultaneously via BLE
+When launched via `start_melk_bridge.py` or the EXE, logs are written to:
+
+- `melk_bridge.log` – general info and errors
+- `error.log` – fatal errors and stack traces
+
+These are especially useful if the EXE fails to start the GUI or bridge.
+
+---
+
+## Building the Obfuscated EXE
+
+1. **Install build dependencies**
+
+```bash
+pip install -r requirements.txt
+```
+
+2. **Run the build script (Windows)**
+
+You can use either:
+
+```bash
+python build.py
+```
+
+or the convenience batch file:
+
+```bash
+build.bat
+```
+
+This will:
+
+- Clean previous build artifacts
+- Obfuscate selected modules with **PyArmor**
+- Generate a PyInstaller `.spec` file with the correct paths and hidden imports
+- Build `MelkoLeaf.exe` into the `dist` directory
+
+3. **Run the EXE**
+
+```text
+dist\MelkoLeaf.exe
+```
+
+> The build is configured to **hide the console window** in normal use. During development you can temporarily enable the console via `build.py` if you want to see stdout/stderr.
+
+---
 
 ## Limitations
 
-**Individual Panel Control**: Unlike real Nanoleaf panels, MELK-OA devices cannot be individually controlled. All panels/strips connected to the bridge will display the same color at the same time. This is a hardware limitation - the devices don't have unique addresses and all listen to the same Bluetooth signal.
+- **Single-color output across devices**  
+  MELK-OA hardware does not support addressing panels individually over BLE in this mode. All connected strips/panels receive the same color.
 
-This means:
-- ✅ All panels are perfectly synchronized
-- ✅ Great for ambient lighting that reacts to games/music
-- ❌ Cannot create multi-colored flowing patterns across panels
-- ❌ Each panel cannot be a different color
+- **Windows-focused GUI EXE**  
+  The GUI + tray EXE is currently designed and tested for Windows. The core bridge logic (`melk_bridge.py`) is portable and can be used on other platforms (with BLE + Python 3.12+).
 
-For most use cases, this is perfectly fine and still provides an excellent RGB experience at a fraction of the cost of premium lighting.
+- **Bluetooth bandwidth**  
+  The bridge throttles updates to ~30 FPS. Sending faster than this provides no visual benefit and can cause latency or dropped frames.
 
-## Troubleshooting
+---
 
-### No Devices Found
+## FAQ
 
-- Ensure your MELK-OA panels are powered on
-- Make sure Bluetooth is enabled on your computer
-- Check that devices are within Bluetooth range
-- Try running the bridge with administrator/root privileges
+- **Can I run this on Linux or macOS?**  
+  Yes, for CLI/headless use. The core bridge (`melk_bridge.py`) should work anywhere `bleak` and Bluetooth are supported. The Windows-specific pieces are the tray integration and startup (registry) logic.
 
-### No UDP Packets Received
+- **Why are effects / per-panel effects removed?**  
+  To keep the bridge focused and reliable for SignalRGB usage. Device-side effects still exist in the hardware but are not exposed through this bridge. This matches the design explained in the [blog post](https://debauchedtea.party/2026/01/30/building-a-bridge-making-cheap-led-panels-work-with-signalrgb/).
 
-- **Windows Firewall**: Allow Python to receive incoming UDP connections on port 60222
-- Check the bridge console for `[UDP]` messages - if you don't see any, SignalRGB may not be sending data
-- Ensure SignalRGB has the device added and an effect is running
+- **Why obfuscate the code?**  
+  Obfuscation with PyArmor helps reduce false-positive flags from antivirus engines when distributing a standalone EXE and adds a mild layer of code protection.
 
-### Devices Don't Turn On Automatically
+---
 
-- Install `btledstrip` (see Installation section)
-- You may need to manually power on your devices the first time
-- Check that the bridge console shows `[BLE] Turn-on sent to all devices`
+## Credits & License
 
-### SignalRGB Can't Find the Device
+- Based on reverse engineering of MELK-OA panels and the work described in the blog post  
+  [Building a Bridge: Making Cheap LED Panels Work with SignalRGB](https://debauchedtea.party/2026/01/30/building-a-bridge-making-cheap-led-panels-work-with-signalrgb/).
+- Uses the excellent libraries:
+  - [Bleak](https://bleak.readthedocs.io/)
+  - `btledstrip`
+  - Flask / Flask-CORS
+  - `zeroconf`
+  - `ttkbootstrap`
+  - `pystray` and `Pillow`
+  - PyInstaller and PyArmor
 
-- Check that your computer's local IP is correct
-- Ensure port 16021 is not blocked by firewall
-- Try manually adding the device with the IP address shown in the bridge console
+This project is provided as-is for personal and educational use. It is not affiliated with Nanoleaf, SignalRGB, or MELK-OA.
 
-## Technical Details
-
-### Protocol Information
-
-The MELK-OA devices use the "7E protocol" (named after the first byte in each command):
-
-- **Color Command**: `7E 00 05 03 [R] [G] [B] 00 EF`
-- **Mode/Effect Command**: `7E 05 03 [mode_id] 06 FF FF 00 EF`
-- **Speed Command**: `7E 04 02 [speed] FF FF FF 00 EF`
-
-### API Endpoints
-
-The bridge implements a minimal Nanoleaf REST API:
-
-- `GET /api/v1/` - Device information
-- `POST /api/v1/new` - Authentication token
-- `GET /api/v1/<token>/` - Device state
-- `PUT /api/v1/<token>/effects` - Set effect/color
-- UDP port 60222 - Real-time color streaming (extControl v2)
-
-### Performance
-
-- Color updates are throttled to 30 FPS to match Bluetooth bandwidth limitations
-- The bridge uses a queue system to drop old frames if updates arrive faster than they can be sent
-- All device operations run in parallel for optimal performance
-
-## Credits
-
-This project was inspired by the need to make affordable RGB lighting work with SignalRGB. The reverse engineering of the MELK-OA protocol was done by analyzing the Magic Lantern Android app.
-
-Special thanks to:
-- The [LED BLE Home Assistant project](https://www.home-assistant.io/integrations/led_ble/) for protocol insights
-- The SignalRGB team for their Nanoleaf integration documentation
-- The open-source community for tools like Bleak and Flask
-
-## License
-
-This project is provided as-is for educational and personal use.
-
-## Related Links
-
-- [Original Blog Post](https://debauchedtea.party/2026/01/30/building-a-bridge-making-cheap-led-panels-work-with-signalrgb/)
-- [SignalRGB](https://www.signalrgb.com/)
-- [Bleak Documentation](https://bleak.readthedocs.io/)
-
-## Contributing
-
-Contributions are welcome! If you have improvements, bug fixes, or new features, please feel free to submit a pull request.
-
-## Disclaimer
-
-This project is not affiliated with Nanoleaf, SignalRGB, or MELK-OA. It is an independent bridge solution created to make affordable lighting work with premium RGB software.
 
