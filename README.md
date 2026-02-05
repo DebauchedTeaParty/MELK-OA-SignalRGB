@@ -10,7 +10,7 @@ This repository contains both the **source bridge script** and a **modern GUI + 
 
 ### MelkoLeaf GUI (EXE)
 
-![MelkoLeaf GUI]([https://debauchedtea.party/img/qffzbzom/](https://debauchedtea.party/wp-content/uploads/2026/02/melko.png))
+![MelkoLeaf GUI](https://debauchedtea.party/wp-content/uploads/2026/02/melko.png)
 
 The EXE version runs in the background with a compact Material Design–inspired GUI and a system tray icon for quick control.
 
